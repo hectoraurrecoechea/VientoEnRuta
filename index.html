@@ -135,6 +135,20 @@ td.a{color:var(--against);font-weight:600}td.f{color:var(--favor);font-weight:60
 .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between}
 .card-gap{margin-top:18px}
 #map{touch-action:pan-y}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.mode{font:inherit;font-weight:600;min-height:40px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer}
+.mode[aria-pressed="true"]{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--surface-2));color:var(--ink)}
+.mode:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#buildCard{margin-bottom:18px}
+.bbar{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0;align-items:center}
+.bbar input[type=search]{flex:1 1 200px;min-width:0;font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:36px}
+.bbar select{width:auto;flex:0 1 auto;min-height:36px;padding:6px 8px}
+.bbar .btn:disabled{opacity:.45;cursor:default}
+.bmapbox{height:clamp(340px,58vh,600px)}
+#bmap{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+.bstat{margin:10px 0 0;font-weight:600}
+#bMsg{margin:4px 0 0;font-size:14px;min-height:1em}
+#bMsg.err{color:var(--against)}
 .mapbox.big{height:min(88vh,920px)}
 .zoomctl{position:absolute;top:10px;left:10px;display:flex;flex-direction:column;gap:6px;z-index:2}
 .zbtn{width:40px;height:40px;border-radius:8px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:600 22px/1 var(--font-body);cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
@@ -178,7 +192,11 @@ td.a{color:var(--against);font-weight:600}td.f{color:var(--favor);font-weight:60
   <div class="layout">
     <aside class="panel controls" aria-label="Ajustes de la salida">
       <h2>Tu salida</h2>
-      <div class="field">
+      <div class="modes" role="group" aria-label="Cómo quieres definir la ruta">
+        <button type="button" class="mode" id="modeFile" aria-pressed="true">Cargar GPX</button>
+        <button type="button" class="mode" id="modeBuild" aria-pressed="false">Crear ruta</button>
+      </div>
+      <div class="field" id="fileField">
         <span class="lbl">Ruta GPX</span>
         <input type="file" id="file" class="sr-only">
         <label class="drop" id="dz" for="file"><span id="fileName">Elegir el archivo .gpx o soltarlo aquí</span></label>
@@ -212,10 +230,43 @@ td.a{color:var(--against);font-weight:600}td.f{color:var(--favor);font-weight:60
     </aside>
 
     <main class="stage">
+      <section class="panel" id="buildCard" hidden>
+        <h3>Crea tu ruta</h3>
+        <p class="hint">Toca el mapa para poner la salida y después los puntos por los que pasarás: la ruta se traza sola siguiendo carreteras y caminos, y el viento se calcula al momento. Arrastra un punto para moverlo, arrastra el trazado para añadir un punto intermedio, y toca un punto para quitarlo.</p>
+        <div class="bbar" id="bSearchRow">
+          <input type="search" id="bSearch" placeholder="Buscar un pueblo o lugar" aria-label="Buscar un lugar">
+          <button type="button" class="btn small" id="bGo">Buscar</button>
+          <button type="button" class="btn small" id="bLoc" title="Ir a mi ubicación">Mi ubicación</button>
+        </div>
+        <div class="bbar">
+          <select id="bMode" aria-label="Tipo de trazado">
+            <option value="fastbike">Bici de carretera</option>
+            <option value="trekking">Mixto (incluye caminos)</option>
+            <option value="line">Línea recta entre puntos</option>
+          </select>
+          <button type="button" class="btn small" id="bUndo" disabled>Deshacer</button>
+          <button type="button" class="btn small" id="bRedo" disabled>Rehacer</button>
+          <button type="button" class="btn small" id="bLoop" disabled>Volver a la salida</button>
+          <button type="button" class="btn small" id="bRev" disabled>Invertir</button>
+          <button type="button" class="btn small" id="bClear" disabled>Borrar todo</button>
+          <button type="button" class="btn small" id="bGpx" disabled>Guardar GPX</button>
+        </div>
+        <div class="mapbox bmapbox" id="bbox">
+          <canvas id="bmap" aria-label="Mapa para crear la ruta. Toca para añadir puntos."></canvas>
+          <div class="zoomctl" role="group" aria-label="Zoom del mapa">
+            <button type="button" class="zbtn" id="bzIn" aria-label="Acercar">+</button>
+            <button type="button" class="zbtn" id="bzOut" aria-label="Alejar">−</button>
+          </div>
+        </div>
+        <p id="bStat" class="bstat">Sin puntos todavía.</p>
+        <p id="bMsg" role="status" aria-live="polite"></p>
+        <div class="legend"><span class="grad"><span>A favor</span><i></i><span>En contra</span></span><span>Las flechas apuntan hacia donde va el aire a la hora en que pasarías por cada punto; cambia la hora o la velocidad a la izquierda y se actualiza.</span></div>
+      </section>
+
       <section class="panel empty" id="empty">
         <h2>Cómo se usa</h2>
         <ol>
-          <li>Exporta tu ruta de Strava o Garmin como GPX y súbela a la izquierda.</li>
+          <li>Carga tu ruta en GPX (Strava, Garmin…) con «Cargar GPX», o pulsa «Crear ruta» y ve tocando el mapa por donde pasarás: se traza sola y el viento se calcula al instante.</li>
           <li>Elige el día, la hora de salida y tu velocidad en llano. Se calcula la duración y la hora a la que pasarás por cada punto.</li>
           <li>Se descarga el pronóstico de viento y lluvia para esos puntos y esas horas.</li>
           <li>Mira el mapa con las flechas del aire, el perfil de desnivel debajo, y mueve la hora de salida para ver cómo cambia.</li>
@@ -736,20 +787,22 @@ async function whyFailed(){
 }
 async function fetchWeather(){
   if(!S.track) return;
-  S.demo=false;
+  S.demo=false;const smp=S.samples;
   setStatus('Descargando el pronóstico de viento y lluvia…','busy');
   try{
-    const {arr,days}=await getForecast(S.samples);
+    const {arr,days}=await getForecast(smp);
+    if(S.samples!==smp) return;   // la ruta ha cambiado mientras tanto
     S.series=arr.map(a=>makeSeries(a.hourly));S.fcDays=days;
     const dly=arr[0].daily;
     S.sun=(dly&&dly.sunrise&&dly.sunset)?{sr:dly.sunrise.map(x=>Date.parse(x+'Z')),ss:dly.sunset.map(x=>Date.parse(x+'Z'))}:null;
     setStatus('Pronóstico de Open-Meteo actualizado a las '+fmtTime(Date.now())+'.','ok');
   }catch(e){
+    if(S.samples!==smp) return;
     S.series=null;S.sun=null;
     const why=await whyFailed();
     setStatus('No he podido descargar el pronóstico ('+e.message+'). '+why,'err',
       {label:'Ver cómo queda con viento de ejemplo',fn:useDemoWind});
-  }finally{recalc({sweep:true});}
+  }finally{if(S.samples===smp) recalc({sweep:true});}
 }
 function useDemoWind(){
   const t0=new Date();t0.setUTCHours(0,0,0,0);
@@ -767,7 +820,8 @@ function useDemoWind(){
 }
 
 // ---------- Cálculo y pantalla ----------
-function loadRoute(parsed,save=true){
+function loadRoute(parsed,save=true,opt){
+  opt=opt||{};B.live=!!opt.live;
   try{S.track=buildTrack(parsed.pts);}catch(e){setStatus(e.message,'err');return;}
   S.name=parsed.name||'Ruta sin nombre';
   S.samples=makeSamples(S.track);S.sel=0;S.hover=-1;S.series=null;S.sun=null;S.sim=null;S.run=null;S.seg=null;S.sweep=null;S.days=null;S.view=null;S.base=null;S.cam={k:1,tx:0,ty:0};S.pois=null;S.passes=[];S.poiSel=-1;S.poiState='idle';
@@ -776,7 +830,9 @@ function loadRoute(parsed,save=true){
   $('routeName').textContent=S.name;
   recalc({sweep:true});
   fetchWeather();
-  fetchPois();
+  if(opt.live){clearTimeout(B.poiTimer);B.poiTimer=setTimeout(()=>{if(S.track&&B.sync) fetchPois();},2500);}   // las fuentes se buscan cuando dejas de editar
+  else fetchPois();
+  bStat();bBtns();
 }
 function recalc(o){
   if(!S.track) return;
@@ -832,7 +888,7 @@ function updateText(t0){
     sn.className='sunNote'+(warn.length?' warn':'');
     sn.textContent=warn.length?warn.join(' '):`Con luz de día en toda la ruta · amanece a las ${fmtTime(sf.sr)} y anochece a las ${fmtTime(sf.ss)}.`;
   }
-  updateDetail();updateTable();updateBest();updateDays();updateLegs();updatePoiUI();updateCloth();
+  updateDetail();updateTable();updateBest();updateDays();updateLegs();updatePoiUI();updateCloth();bStat();bBtns();
   $('laneHint').hidden=!(S.track.sharedFrac>0.02);
   $('sweepCard').hidden=!S.sweep;
   $('daysCard').hidden=!S.days;
@@ -909,7 +965,7 @@ function setStart(min){
 
 // ---------- Dibujo ----------
 let raf=0;
-function scheduleDraw(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;drawMap();drawProf();drawSweep();});}
+function scheduleDraw(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;drawMap();drawProf();drawSweep();drawBuild();});}
 function fitCanvas(c){
   const dpr=Math.min(window.devicePixelRatio||1,3),W=c.clientWidth,H=c.clientHeight;
   if(c._w!==W||c._h!==H||c._d!==dpr){c.width=Math.round(W*dpr);c.height=Math.round(H*dpr);c._w=W;c._h=H;c._d=dpr;}
@@ -1630,6 +1686,355 @@ async function handleFile(file){
   $('fileName').textContent=file.name;
   try{loadRoute(parseGPX(await file.text()));}catch(e){setStatus(e.message,'err');}
 }
+// ---------- Crear la ruta dentro de la app ----------
+// B guarda los puntos que pones en el mapa (B.pts), el trazado de cada tramo entre dos puntos (B.legs) y el mapa propio de edición.
+const B={pts:[],legs:[],undo:[],redo:[],cx:0.5,cy:0.4,z:5.5,mode:'fastbike',ver:0,sync:false,live:false,drag:null,busy:0,msg:'',msgKind:'',timer:0,poiTimer:0,legCache:new Map(),view:null,pointers:new Map(),gest:null};
+const bLonLat=(x,y)=>({lon:x*360-180,lat:deg(Math.atan(Math.sinh(Math.PI*(1-2*y))))});
+function bView(W,H){const sc=256*2**B.z;return {W,H,S:sc,ox:W/2-B.cx*sc,oy:H/2-B.cy*sc};}
+const bPx=(v,lat,lon)=>[mercX(lon)*v.S+v.ox,mercY(lat)*v.S+v.oy];
+function bSave(){try{storeSet('ver.draft',JSON.stringify({pts:B.pts.map(p=>[+p.lat.toFixed(6),+p.lon.toFixed(6)]),mode:B.mode}));storeSet('ver.bview',JSON.stringify({cx:B.cx,cy:B.cy,z:B.z}));}catch(e){}}
+function bMsg(t,kind){B.msg=t||'';B.msgKind=kind||'';const m=$('bMsg');if(m){m.textContent=B.msg;m.className=B.msgKind;}}
+// --- Trazado de cada tramo: BRouter (con altitud), luego el servidor de rutas de OpenStreetMap, y si no hay ninguno, línea recta.
+async function bRouter(a,b,profile){
+  const r=await fetchT(`https://brouter.de/brouter?lonlats=${a.lon},${a.lat}|${b.lon},${b.lat}&profile=${profile}&alternativeidx=0&format=geojson`,{},15000);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const j=await r.json(),c=j.features&&j.features[0]&&j.features[0].geometry.coordinates;
+  if(!c||c.length<2) throw new Error('sin trazado');
+  return c.map(q=>({lat:q[1],lon:q[0],ele:q.length>2?+q[2]:NaN}));
+}
+async function bOsrm(a,b){
+  const r=await fetchT(`https://routing.openstreetmap.de/routed-bike/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson`,{},15000);
+  if(!r.ok) throw new Error('HTTP '+r.status);
+  const j=await r.json(),c=j.routes&&j.routes[0]&&j.routes[0].geometry.coordinates;
+  if(!c||c.length<2) throw new Error('sin trazado');
+  return c.map(q=>({lat:q[1],lon:q[0],ele:NaN}));
+}
+async function bLeg(a,b){
+  const key=B.mode+'|'+[a.lat,a.lon,b.lat,b.lon].map(x=>x.toFixed(5)).join(',');
+  if(B.legCache.has(key)) return B.legCache.get(key);
+  let pts=null,fb=false;
+  if(B.mode!=='line'){
+    try{pts=await bRouter(a,b,B.mode);}catch(e1){try{pts=await bOsrm(a,b);}catch(e2){pts=null;}}
+  }
+  if(!pts){pts=[{lat:a.lat,lon:a.lon,ele:NaN},{lat:b.lat,lon:b.lon,ele:NaN}];fb=B.mode!=='line';}
+  const leg={pts,fb};
+  if(!fb) B.legCache.set(key,leg);
+  return leg;
+}
+// --- Altitud (Open-Meteo) cuando el trazado no la trae
+async function bElevation(pts){
+  if(pts.every(p=>isFinite(p.ele))) return;
+  const cum=[0];for(let i=1;i<pts.length;i++) cum.push(cum[i-1]+haversine(pts[i-1].lat,pts[i-1].lon,pts[i].lat,pts[i].lon));
+  const total=cum[cum.length-1],step=Math.max(100,total/400),idx=[0];
+  for(let i=1;i<pts.length;i++) if(cum[i]-cum[idx[idx.length-1]]>=step) idx.push(i);
+  if(idx[idx.length-1]!==pts.length-1) idx.push(pts.length-1);
+  const el=new Array(idx.length).fill(NaN);
+  for(let s=0;s<idx.length;s+=100){
+    const part=idx.slice(s,s+100);
+    const r=await fetchT('https://api.open-meteo.com/v1/elevation?latitude='+part.map(i=>pts[i].lat.toFixed(5)).join(',')+'&longitude='+part.map(i=>pts[i].lon.toFixed(5)).join(','),{},12000);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j=await r.json();(j.elevation||[]).forEach((v,q)=>{el[s+q]=v;});
+  }
+  if(el.some(v=>!isFinite(v))) return;
+  let q=0;
+  for(let i=0;i<pts.length;i++){
+    while(q<idx.length-2&&cum[idx[q+1]]<cum[i]) q++;
+    const a=cum[idx[q]],b=cum[idx[q+1]],f=b>a?clamp((cum[i]-a)/(b-a),0,1):0;
+    pts[i].ele=el[q]+(el[q+1]-el[q])*f;
+  }
+}
+// --- Actualiza el trazado y el cálculo del viento, con una pausa para no pedir nada a cada clic
+function bChanged(){
+  B.ver++;B.sync=false;bSave();bBtns();scheduleDraw();
+  clearTimeout(B.timer);B.timer=setTimeout(bUpdate,350);
+}
+async function bUpdate(){
+  const ver=B.ver,n=B.pts.length;
+  B.legs.length=Math.max(0,n-1);
+  if(n<2){
+    B.legs=[];bStat();
+    if(B.live){S.track=null;$('results').hidden=true;$('btnRefresh').disabled=true;}
+    bMsg(n===1?'Toca otro punto para trazar el primer tramo.':'','');scheduleDraw();return;
+  }
+  B.busy++;bMsg('Trazando la ruta…','');bBtns();
+  try{
+    const need=[];
+    for(let i=0;i<n-1;i++){
+      const a=B.pts[i],b=B.pts[i+1];
+      const old=B.legs[i];
+      if(old&&old.ok&&old.a===a&&old.b===b&&!old.fb) continue;
+      need.push(i);
+    }
+    let q=0;
+    const work=async()=>{while(q<need.length){const i=need[q++];const a=B.pts[i],b=B.pts[i+1];const leg=await bLeg(a,b);if(ver!==B.ver) return;B.legs[i]={...leg,a,b,ok:true};scheduleDraw();}};
+    await Promise.all([work(),work(),work()]);
+    if(ver!==B.ver) return;
+    const pts=[];
+    for(let i=0;i<n-1;i++){const lp=B.legs[i].pts;for(let k=(i?1:0);k<lp.length;k++) pts.push({...lp[k]});}
+    let eleWarn=false;
+    try{await bElevation(pts);}catch(e){eleWarn=true;}
+    if(ver!==B.ver) return;
+    const fb=B.legs.filter(l=>l.fb).length;
+    B.live=true;B.sync=true;
+    loadRoute({pts,name:'Ruta creada en la app'},true,{live:true});
+    bMsg(fb?`No he podido trazar ${fb} tramo${fb>1?'s':''} por carretera: salen en línea recta. `:(eleWarn?'No he podido calcular el desnivel. ':''),fb||eleWarn?'err':'');
+    if(fb||eleWarn) bRetry();
+  }catch(e){if(ver===B.ver) bMsg('No he podido trazar la ruta ('+e.message+').','err');}
+  finally{B.busy=Math.max(0,B.busy-1);bBtns();bStat();scheduleDraw();}
+}
+function bRetry(){
+  const m=$('bMsg'),b=document.createElement('button');b.type='button';b.className='btn small';b.style.marginLeft='8px';b.textContent='Reintentar';
+  b.addEventListener('click',()=>{B.legs.forEach(l=>{if(l&&l.fb) l.ok=false;});bChanged();});m.appendChild(b);
+}
+function bStat(){
+  const el=$('bStat');if(!el) return;
+  const n=B.pts.length;
+  if(!n){el.textContent='Sin puntos todavía.';return;}
+  let t=`${n} punto${n>1?'s':''}`;
+  if(B.sync&&S.track){
+    t+=` · ${nf1.format(S.track.total/1000)} km`;
+    if(S.sim){t+=` · ${fmtDur(S.sim.dur)}`;const sm=S.run?summarize(S.run,S.relT):null;
+      if(sm&&isFinite(sm.avgHead)) t+=` · viento medio ${nf0.format(Math.abs(sm.avgHead))} km/h ${sm.avgHead>=0?'en contra':'a favor'}`;}
+  }
+  el.textContent=t;
+}
+function bBtns(){
+  $('bUndo').disabled=!B.undo.length;$('bRedo').disabled=!B.redo.length;
+  $('bLoop').disabled=B.pts.length<2;$('bRev').disabled=B.pts.length<2;$('bClear').disabled=!B.pts.length;$('bGpx').disabled=!(B.sync&&S.track);
+}
+function bPush(){B.undo.push(B.pts.map(p=>({...p})));if(B.undo.length>100)B.undo.shift();B.redo=[];}
+function bUndo(){if(!B.undo.length) return;B.redo.push(B.pts.map(p=>({...p})));B.pts=B.undo.pop();bChanged();}
+function bRedo(){if(!B.redo.length) return;B.undo.push(B.pts.map(p=>({...p})));B.pts=B.redo.pop();bChanged();}
+function bAdd(lat,lon,at){bPush();const p={lat,lon};if(at==null) B.pts.push(p);else B.pts.splice(at,0,p);bChanged();}
+// --- Gestos del mapa de edición
+function bRel(e){const r=$('bmap').getBoundingClientRect();return [e.clientX-r.left,e.clientY-r.top];}
+function bHitPoint(x,y){
+  const v=B.view;if(!v) return -1;
+  let best=-1,bd=(B.pointers.size&&B.lastType==='touch'?22:15);
+  B.pts.forEach((p,i)=>{const [px,py]=bPx(v,p.lat,p.lon),d=Math.hypot(px-x,py-y);if(d<=bd){bd=d;best=i;}});
+  return best;
+}
+// Tramo de la ruta más cercano al punto de pantalla (para arrastrarlo y crear un punto intermedio)
+function bHitLeg(x,y){
+  const v=B.view;if(!v) return -1;
+  let best=-1,bd=11;
+  B.legs.forEach((l,i)=>{
+    if(!l||!l.pts) return;
+    let ax=0,ay=0;
+    l.pts.forEach((p,k)=>{
+      const [px,py]=bPx(v,p.lat,p.lon);
+      if(k){const dx=px-ax,dy=py-ay,L=dx*dx+dy*dy,t=L?clamp(((x-ax)*dx+(y-ay)*dy)/L,0,1):0,d=Math.hypot(ax+dx*t-x,ay+dy*t-y);if(d<bd){bd=d;best=i;}}
+      ax=px;ay=py;
+    });
+  });
+  return best;
+}
+function bZoomAt(x,y,f){
+  const v=B.view;if(!v) return;
+  const nz=clamp(B.z+Math.log2(f),2,19);if(nz===B.z) return;
+  const wx=(x-v.ox)/v.S,wy=(y-v.oy)/v.S,sc=256*2**nz;
+  B.z=nz;B.cx=wx-(x-v.W/2)/sc;B.cy=wy-(y-v.H/2)/sc;bClampView();bSave();scheduleDraw();
+}
+function bClampView(){B.cx=clamp(B.cx,0,1);B.cy=clamp(B.cy,0.02,0.98);}
+function bDown(e){
+  if(e.pointerType==='mouse'&&e.button!==0) return;
+  const c=$('bmap');try{c.setPointerCapture(e.pointerId);}catch(err){}
+  B.lastType=e.pointerType;
+  const p=bRel(e);B.pointers.set(e.pointerId,p);
+  if(B.pointers.size===2){
+    const [a,b]=[...B.pointers.values()];
+    B.gest={mode:'pinch',d0:Math.hypot(a[0]-b[0],a[1]-b[1])||1,z0:B.z,cx0:B.cx,cy0:B.cy};B.drag=null;return;
+  }
+  const pi=bHitPoint(p[0],p[1]);
+  if(pi>=0){B.gest={mode:'point',i:pi,x0:p[0],y0:p[1],t0:Date.now(),moved:false};return;}
+  const li=bHitLeg(p[0],p[1]);
+  if(li>=0){B.gest={mode:'leg',i:li,x0:p[0],y0:p[1],moved:false};return;}
+  B.gest={mode:'tap',x0:p[0],y0:p[1],t0:Date.now(),moved:false,cx:B.cx,cy:B.cy};
+}
+function bMove(e){
+  const c=$('bmap'),p=bRel(e),g=B.gest;
+  if(!B.pointers.has(e.pointerId)){
+    if(e.pointerType==='mouse'){const over=bHitPoint(p[0],p[1])>=0?'grab':(bHitLeg(p[0],p[1])>=0?'copy':'crosshair');if(c.style.cursor!==over) c.style.cursor=over;}
+    return;
+  }
+  B.pointers.set(e.pointerId,p);
+  if(!g) return;
+  if(g.mode==='pinch'&&B.pointers.size>=2){
+    const [a,b]=[...B.pointers.values()],d=Math.hypot(a[0]-b[0],a[1]-b[1])||1,v=B.view,mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2;
+    const wx=(mx-v.ox)/v.S,wy=(my-v.oy)/v.S,nz=clamp(g.z0+Math.log2(d/g.d0),2,19),sc=256*2**nz;
+    B.z=nz;B.cx=wx-(mx-v.W/2)/sc;B.cy=wy-(my-v.H/2)/sc;bClampView();scheduleDraw();return;
+  }
+  const dx=p[0]-g.x0,dy=p[1]-g.y0;
+  if(!g.moved&&Math.hypot(dx,dy)>6) g.moved=true;
+  if(!g.moved) return;
+  const v=B.view;
+  if(g.mode==='leg'){   // empieza a arrastrar un tramo: nace un punto intermedio
+    bPush();B.pts.splice(g.i+1,0,{lat:bLonLat((g.x0-v.ox)/v.S,(g.y0-v.oy)/v.S).lat,lon:bLonLat((g.x0-v.ox)/v.S,(g.y0-v.oy)/v.S).lon});
+    B.legs.splice(g.i,1,null,null);   // el tramo se parte en dos y se vuelve a trazar
+    g.mode='point';g.i=g.i+1;g.fresh=true;
+  }
+  if(g.mode==='point'){
+    const ll=bLonLat((p[0]-v.ox)/v.S,(p[1]-v.oy)/v.S);
+    if(!g.pushed&&!g.fresh){bPush();g.pushed=true;}
+    B.pts[g.i]={lat:ll.lat,lon:ll.lon};B.drag=g.i;B.sync=false;scheduleDraw();return;
+  }
+  if(g.mode==='tap'){
+    const sc=v.S;B.cx=g.cx-dx/sc;B.cy=g.cy-dy/sc;bClampView();$('bmap').style.cursor='grabbing';scheduleDraw();
+  }
+}
+function bUp(e){
+  const g=B.gest;B.pointers.delete(e.pointerId);
+  if(B.pointers.size===1&&g&&g.mode==='pinch'){const q=[...B.pointers.values()][0];B.gest={mode:'tap',x0:q[0],y0:q[1],moved:true,cx:B.cx,cy:B.cy};return;}
+  if(B.pointers.size>0||!g) return;
+  B.gest=null;B.drag=null;
+  const v=B.view,p=bRel(e);
+  if(g.mode==='point'){
+    if(!g.moved&&e.type==='pointerup'){bPush();B.pts.splice(g.i,1);B.legs=[];bChanged();return;}   // un toque sobre un punto lo quita
+    B.legs=[];bChanged();return;
+  }
+  if(g.mode==='leg'&&!g.moved&&e.type==='pointerup'){   // un toque sobre el trazado también añade un punto al final
+    const ll=bLonLat((p[0]-v.ox)/v.S,(p[1]-v.oy)/v.S);bAdd(ll.lat,ll.lon);return;
+  }
+  if(g.mode==='tap'){
+    if(!g.moved&&e.type==='pointerup'){const ll=bLonLat((p[0]-v.ox)/v.S,(p[1]-v.oy)/v.S);bAdd(ll.lat,ll.lon);}
+    else bSave();
+    $('bmap').style.cursor='crosshair';
+  }
+}
+// --- Dibujo del mapa de edición
+function drawBuild(){
+  const c=$('bmap');if(!c||$('buildCard').hidden) return;
+  const {ctx,W,H}=fitCanvas(c);if(!W||!H) return;
+  const P=pal(),v=bView(W,H);B.view=v;
+  ctx.fillStyle=P.bg;ctx.fillRect(0,0,W,H);
+  const style=S.mapStyle;let info=null;
+  if(style!=='none'&&TILE_STYLES[style]){
+    info=drawTiles(ctx,v,style,P.dark,scheduleDraw);
+    const veil=TILE_STYLES[style].veil(P.dark);if(veil){ctx.fillStyle=veil;ctx.fillRect(0,0,W,H);}
+  }
+  const k=clamp(Math.min(W,H)/560,0.8,1.15);
+  const line=(pts,color,w,dash)=>{
+    ctx.beginPath();pts.forEach((p,i)=>{const [x,y]=bPx(v,p.lat,p.lon);if(i) ctx.lineTo(x,y);else ctx.moveTo(x,y);});
+    ctx.setLineDash(dash||[]);ctx.lineJoin='round';ctx.lineCap='round';ctx.lineWidth=w;ctx.strokeStyle=color;ctx.stroke();ctx.setLineDash([]);
+  };
+  const T=S.track,showTrack=B.sync&&T&&S.seg;
+  if(B.pts.length<2&&T&&!B.live){   // ruta cargada desde un GPX: se ve aquí hasta empezar una nueva
+    ctx.beginPath();for(let i=0;i<=T.n;i++){const x=T.wx[i]*v.S+v.ox,y=T.wy[i]*v.S+v.oy;if(i) ctx.lineTo(x,y);else ctx.moveTo(x,y);}
+    ctx.lineWidth=5*k;ctx.strokeStyle=P.halo;ctx.stroke();ctx.lineWidth=3*k;ctx.strokeStyle=P.accent;ctx.stroke();
+  }
+  // trazado: primero el contorno blanco y debajo de la ruta en color
+  const legPts=[];
+  for(let i=0;i<B.pts.length-1;i++){
+    const l=B.legs[i];
+    legPts.push(l&&l.pts&&B.drag==null?l.pts:[B.pts[i],B.pts[i+1]]);
+  }
+  legPts.forEach((lp,i)=>line(lp,P.halo,7*k));
+  if(showTrack&&B.drag==null){
+    for(let a=0;a<T.n;){
+      const b=Math.min(T.n,a+8);let sum=0,cn=0;
+      for(let i=a;i<b;i++) if(isFinite(S.seg[i])){sum+=S.seg[i];cn++;}
+      ctx.beginPath();for(let i=a;i<=b;i++){const x=T.wx[i]*v.S+v.ox,y=T.wy[i]*v.S+v.oy;if(i===a)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
+      ctx.lineWidth=4.5*k;ctx.lineCap='round';ctx.strokeStyle=hwColor(cn?sum/cn:NaN,P.dark);ctx.stroke();a=b;
+    }
+  }else legPts.forEach((lp,i)=>{const l=B.legs[i];line(lp,P.accent,4*k,(l&&l.fb)||B.drag!=null?[6*k,5*k]:null);});
+  // flechas de viento en los puntos de consulta
+  if(showTrack&&B.drag==null&&S.run){
+    S.samples.forEach((s,j)=>{
+      const r=S.run[j];if(!r||!isFinite(r.ws)) return;
+      const x=s.wx*v.S+v.ox,y=s.wy*v.S+v.oy;if(x<-40||y<-40||x>W+40||y>H+40) return;
+      drawArrow(ctx,x,y,rad(r.wd+180),(18+Math.min(r.ws,45)/45*26)*k,3.2*k,hwColor(r.head,P.dark),P.halo);
+    });
+  }
+  // puntos de la ruta
+  const n=B.pts.length;
+  B.pts.forEach((p,i)=>{
+    const [x,y]=bPx(v,p.lat,p.lon),first=i===0,last=i===n-1&&n>1,r=(first||last?12:10)*k;
+    ctx.beginPath();if(last)ctx.rect(x-r,y-r,2*r,2*r);else ctx.arc(x,y,r,0,7);
+    ctx.fillStyle=first?'#1f9d55':(last?P.ink:P.surface);ctx.fill();ctx.lineWidth=2.6*k;ctx.strokeStyle=first||last?'#ffffff':P.ink;ctx.stroke();
+    ctx.fillStyle=first?'#ffffff':(last?P.surface:P.ink);ctx.font=`700 ${12*k}px 'Barlow Condensed',system-ui,sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(first?'S':(last?'M':String(i)),x,y+0.5);
+  });
+  if(!n&&!(T&&!B.live)) haloText(ctx,'Toca el mapa para poner el punto de salida',W/2,H/2,P.ink,P.halo,16*k,700);
+  if(B.busy) haloText(ctx,'Trazando…',W/2,18*k,P.ink,P.halo,13*k,700);
+  haloText(ctx,TILE_STYLES[style]?TILE_STYLES[style].attr:'',W-8*k,H-9*k,P.muted,P.halo,11*k,500,'right');
+  if(info&&info.fail>0&&info.ok===0) haloText(ctx,'No se pudo cargar el mapa de fondo. Prueba con otro estilo.',W/2,H-34*k,P.ink,P.halo,14*k,600);
+}
+function bFit(pts){
+  if(!pts.length) return;
+  const c=$('bmap'),W=c.clientWidth||600,H=c.clientHeight||400;
+  let x0=1,x1=0,y0=1,y1=0;pts.forEach(p=>{const x=mercX(p.lon),y=mercY(p.lat);x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y);});
+  const dx=Math.max(x1-x0,1e-6),dy=Math.max(y1-y0,1e-6),pad=50;
+  const sc=Math.min((W-2*pad)/dx,(H-2*pad)/dy);
+  B.z=clamp(Math.log2(sc/256),2,17);B.cx=(x0+x1)/2;B.cy=(y0+y1)/2;bClampView();bSave();scheduleDraw();
+}
+// --- Botones y arranque del modo "Crear ruta"
+async function bSearch(){
+  const q=$('bSearch').value.trim();if(!q) return;
+  bMsg('Buscando…','');
+  try{
+    const r=await fetchT('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&accept-language=es&q='+encodeURIComponent(q),{},10000);
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const j=await r.json();if(!j.length){bMsg('No encuentro ese lugar.','err');return;}
+    const it=j[0],bb=it.boundingbox&&it.boundingbox.map(Number);
+    if(bb) bFit([{lat:bb[0],lon:bb[2]},{lat:bb[1],lon:bb[3]}]);else{B.cx=mercX(+it.lon);B.cy=mercY(+it.lat);B.z=13;bClampView();scheduleDraw();}
+    bMsg('','');
+  }catch(e){bMsg('No he podido buscar el lugar ('+e.message+').','err');}
+}
+function bLocate(){
+  if(!navigator.geolocation){bMsg('Tu navegador no permite saber dónde estás.','err');return;}
+  bMsg('Buscando tu ubicación…','');
+  navigator.geolocation.getCurrentPosition(p=>{B.cx=mercX(p.coords.longitude);B.cy=mercY(p.coords.latitude);B.z=13;bClampView();bSave();bMsg('','');scheduleDraw();},()=>bMsg('No he podido obtener tu ubicación (permiso denegado o sin señal).','err'),{timeout:10000,maximumAge:60000});
+}
+function bGpx(){
+  if(!S.track||!B.sync) return;
+  const rows=[];
+  B.legs.forEach((l,i)=>{if(l&&l.pts) l.pts.forEach((p,k)=>{if(i&&!k) return;rows.push(p);});});
+  const esc2=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  const xml='<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Viento en ruta" xmlns="http://www.topografix.com/GPX/1/1">\n<trk><name>'+esc2(S.name||'Ruta')+'</name><trkseg>\n'+
+    rows.map(p=>`<trkpt lat="${p.lat.toFixed(6)}" lon="${p.lon.toFixed(6)}">${isFinite(p.ele)?`<ele>${p.ele.toFixed(1)}</ele>`:''}</trkpt>`).join('\n')+'\n</trkseg></trk></gpx>\n';
+  const url=URL.createObjectURL(new Blob([xml],{type:'application/gpx+xml'}));
+  const a=document.createElement('a');a.href=url;a.download='ruta-viento-en-ruta.gpx';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
+}
+function setUiMode(m,quiet){
+  S.uiMode=m;storeSet('ver.mode',m);
+  const build=m==='build';
+  $('fileField').hidden=build;$('buildCard').hidden=!build;
+  $('modeFile').setAttribute('aria-pressed',build?'false':'true');$('modeBuild').setAttribute('aria-pressed',build?'true':'false');
+  $('empty').hidden=build||!!S.track;
+  if(build){
+    $('bSearchRow').hidden=false;
+    if(!B.pts.length&&!B.restored){
+      B.restored=true;
+      try{const d=JSON.parse(storeGet('ver.draft')||'null');if(d&&Array.isArray(d.pts)&&d.pts.length){B.pts=d.pts.map(a=>({lat:a[0],lon:a[1]}));if(['fastbike','trekking','line'].includes(d.mode)){B.mode=d.mode;}}}catch(e){}
+    }
+    $('bMode').value=B.mode;
+    requestAnimationFrame(()=>{
+      if(B.pts.length) {bFit(B.pts);bChanged();}
+      else if(S.track){bFit([{lat:S.track.lat0,lon:S.track.lon0}].concat(S.track.n?[{lat:S.track.lat[0],lon:S.track.lon[0]},{lat:S.track.lat[S.track.n],lon:S.track.lon[S.track.n]}]:[]));}
+      else{try{const v=JSON.parse(storeGet('ver.bview')||'null');if(v&&isFinite(v.z)){B.cx=v.cx;B.cy=v.cy;B.z=v.z;}else{B.cx=mercX(-3.7);B.cy=mercY(40.4);B.z=6;}}catch(e){}}
+      bBtns();bStat();scheduleDraw();
+    });
+  }else{if(S.track){$('empty').hidden=true;}scheduleDraw();}
+}
+function bInit(){
+  const c=$('bmap');
+  c.addEventListener('pointerdown',bDown);c.addEventListener('pointermove',bMove);
+  c.addEventListener('pointerup',bUp);c.addEventListener('pointercancel',bUp);
+  c.addEventListener('wheel',e=>{e.preventDefault();const p=bRel(e);bZoomAt(p[0],p[1],Math.exp(-e.deltaY*0.0015*(e.deltaMode===1?16:1)));},{passive:false});
+  const mid=()=>[c.clientWidth/2,c.clientHeight/2];
+  $('bzIn').addEventListener('click',()=>{const m=mid();bZoomAt(m[0],m[1],1.6);});
+  $('bzOut').addEventListener('click',()=>{const m=mid();bZoomAt(m[0],m[1],1/1.6);});
+  $('bUndo').addEventListener('click',bUndo);$('bRedo').addEventListener('click',bRedo);
+  $('bLoop').addEventListener('click',()=>{if(B.pts.length>=2){const f=B.pts[0];bAdd(f.lat,f.lon);}});
+  $('bRev').addEventListener('click',()=>{if(B.pts.length>=2){bPush();B.pts.reverse();B.legs=[];bChanged();}});
+  $('bClear').addEventListener('click',()=>{if(B.pts.length){bPush();B.pts=[];B.legs=[];bChanged();}});
+  $('bGpx').addEventListener('click',bGpx);
+  $('bMode').addEventListener('change',()=>{B.mode=$('bMode').value;B.legs=[];bChanged();});
+  $('bGo').addEventListener('click',bSearch);$('bSearch').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();bSearch();}});
+  $('bLoc').addEventListener('click',bLocate);
+  $('modeFile').addEventListener('click',()=>setUiMode('file'));$('modeBuild').addEventListener('click',()=>setUiMode('build'));
+}
+
 function init(){
   const now=new Date();let d=new Date(now);let hh=now.getHours()+1;
   if(hh>=20){d.setDate(d.getDate()+1);hh=9;}
@@ -1652,6 +2057,7 @@ function init(){
     });
   }
 
+  bInit();
   $('file').addEventListener('change',e=>handleFile(e.target.files[0]));
   const dz=$('dz');
   ['dragenter','dragover'].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.add('over');}));
@@ -1660,8 +2066,9 @@ function init(){
   $('btnExample').addEventListener('click',()=>{$('fileName').textContent='Ruta de ejemplo';loadRoute(exampleRoute(),false);});
   $('btnRefresh').addEventListener('click',()=>{fetchWeather();});
   $('btnForget').addEventListener('click',()=>{
-    storeDel('ver.route');S.track=null;S.series=null;S.sim=null;S.poiToken++;
-    $('results').hidden=true;$('empty').hidden=false;$('btnRefresh').disabled=true;$('saved').hidden=true;
+    storeDel('ver.route');storeDel('ver.draft');S.track=null;S.series=null;S.sim=null;S.poiToken++;
+    B.pts=[];B.legs=[];B.undo=[];B.redo=[];B.live=false;B.sync=false;bBtns();bStat();bMsg('','');
+    $('results').hidden=true;$('empty').hidden=S.uiMode==='build';$('btnRefresh').disabled=true;$('saved').hidden=true;
     $('fileName').textContent='Elegir el archivo .gpx o soltarlo aquí';setStatus('','');$('file').value='';
   });
   $('date').addEventListener('change',()=>{if(!$('date').value)return;recalc({sweep:true});});
@@ -1755,6 +2162,7 @@ function init(){
   $('poiBody').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){const tr=e.target.closest('tr[data-i]');if(tr){e.preventDefault();focusPoi(+tr.dataset.i);}}});
 
   new ResizeObserver(scheduleDraw).observe($('mapbox'));
+  new ResizeObserver(scheduleDraw).observe($('bbox'));
   new ResizeObserver(scheduleDraw).observe($('profbox'));
   new ResizeObserver(scheduleDraw).observe($('sweep').parentElement);
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change',scheduleDraw);
@@ -1764,6 +2172,7 @@ function init(){
     navigator.serviceWorker.register('sw.js').catch(()=>{});
   }
   restoreRoute();
+  if(storeGet('ver.mode')==='build') setUiMode('build');
 }
 init();
 </script>
